@@ -18,6 +18,7 @@ idx = 0
 index = 0
 limit_balance = 100000000
 buy_at_now = 1
+get_price = 0
 
 ## 비트코인, 이더리움, 에이다, 도지코인, 리플, 폴카닷, 비트코인캐시, 라이트코인, 체인링크, 쎄타토큰, 스텔라루멘, 비체인,
 # 이더리움클래식, 트론, 이오스, 네오, 아이오타, 쎄타퓨엘, 비트코인에스브이, 크립토닷컴체인, 코스모스, 비트토렌트, 테조스,
@@ -34,6 +35,8 @@ ref_price = []
 buy_price = []
 sell_price = []
 crypto_sorted_list = []
+trading_limit_price = 10000000000
+searching_limit = crypto_cnt
 
 def get_percent(src1, src2):
     p = (src1 - src2) / src1 * 100
@@ -72,14 +75,24 @@ def get_balance(ticker):
     return 0.0
 
 
+def get_buy_price(ticker):
+    # """잔고 조회"""
+    balances = upbit.get_balances()
+    for b in balances:
+        if b['currency'] == ticker:
+            if b['avg_buy_price'] is not None:
+                return float(b['avg_buy_price'])
+    return 0.0
+
+
 def get_current_price(ticker):
     # """현재가 조회"""
-    return pyupbit.get_orderbook(tickers=ticker)[0]["orderbook_units"][0]["ask_price"]
+    return  pyupbit.get_current_price(ticker)
 
 
 def crypto_print(*str):
-    print(str)
-    #return 0
+    #print(str)
+    return 0
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
@@ -89,7 +102,6 @@ print("autotrade start")
 while True:
     try:
         now = datetime.datetime.now()
-
 
         if Trading_start is False:
 
@@ -113,16 +125,24 @@ while True:
             for cnt in range(crypto_cnt):
                 price = get_ref_price(crypto_sorted_list[cnt][1])
                 balance = get_balance(crypto_sorted_list[cnt][0])
+                get_price = get_buy_price(crypto_sorted_list[cnt][0])
 
                 if price * balance > min_krw:
                     state = SELL
                     index = cnt
                     print("we have", crypto_sorted_list[cnt][1], balance)
+                    if price < get_price:
+                        price = get_price
 
                 ref_price.append(price)
                 buy_price.append(price)
                 sell_price.append(price)
                 time.sleep(0.1)
+
+            for cnt in range(crypto_cnt):
+                if (crypto_sorted_list[cnt][2] < trading_limit_price):
+                    searching_limit = cnt
+                    break
 
             buy_at_now = 0
             Trading_start = True
@@ -152,6 +172,7 @@ while True:
                             state = SELL
                             buy_at_now = 1
                             index = idx
+                            get_price = cur_price
                         else:
                             idx -= 1
 
@@ -164,7 +185,7 @@ while True:
 
                 idx += 1
 
-                if idx >= crypto_cnt:
+                if idx >= searching_limit:
                     idx = 0
 
             elif state is SELL:
@@ -191,7 +212,7 @@ while True:
                     crypto_print(crypto_sorted_list[index][1], index, "T_P:", sell_price[index], "C_P:", cur_price, "Ready to SELL", format(get_percent(sell_price[index], cur_price), ".2f"),  now.hour, now.minute, now.second)
                     # please update go to current price over target price during sell.#
 
-        if now.hour == 9 and now.minute == 00 and now.second >= 00 and now.second <= 19:
+        if now.minute == 00 and now.second >= 00 and now.second <= 19:
             Trading_start = False
             idx = 0
             index = 0
